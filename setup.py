@@ -42,7 +42,7 @@ def main():
           package_dir  = { '' : 'src'},
           packages     = ['SQLAlchemyLibrary'],
           package_data = {'SQLAlchemyLibrary': ['VERSION']},
-          requires     = ['sqlalchemy'],
+          requires     = ['sqlalchemy', 'sqlparse'],
           install_requires = ['robotframework', 'sqlalchemy'],
           )
 

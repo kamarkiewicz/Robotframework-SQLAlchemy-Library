@@ -13,7 +13,10 @@
 #  limitations under the License.
 
 from robot.libraries.BuiltIn import BuiltIn
+from robot.libraries.OperatingSystem import OperatingSystem
 from robot.api import logger
+import sqlparse
+import warnings
 
 
 class Query(object):
@@ -126,31 +129,29 @@ class Query(object):
         sql_line = sql_line.strip()
         return sql_line.startswith('--') or sql_line.startswith('#')
 
-    def _remove_comments(self, sql):
-        lines = [line for line in sql.split('\n') if not self.is_comment(line)]
-        lines = [line.strip() for line in lines if not len(line.strip()) == 0]
-        return '\n'.join(lines)
-
-    def _split_sql_script(self, sql):
+    def _split_batches_of_sql_statements(self, sql):
         """
-        Splits an SQL script into semicolon (';')-separated queries,
-        ignoring any line that starts wih '--' or '#'.
+        Splits an SQL batches into semicolon (';')-separated queries.
 
-        >>> Query()._split_sql_script('select name;')
+        >>> Query()._split_batches_of_sql_statements('  select name  ;  ')
         ['select name']
-        >>> Query()._split_sql_script('''select name;
+        >>> Query()._split_batches_of_sql_statements('''select name;
         ... select lname;''')
         ['select name', 'select lname']
-        >>> Query()._split_sql_script('''select name;
+        >>> Query()._split_batches_of_sql_statements('''select name;
         ... -- This is a comment
-        ... # This is also a comment
-        ... select lname;''')
-        ['select name', 'select lname']
+        ...    # This is also a comment
+        ... select lname   ;
+        ... ''')
+        ['select name', '-- This is a comment\n # This is also a comment\nselect lname']
+        >>> Query()._split_batches_of_sql_statements('''select name;
+        ... select privileges from users
+        ... where privileges like 'insert;delete'  ;  ''')
+        ['select name', "select privileges from users where privileges like 'insert;delete'"]
         """
-        lines = list()
-        queries = sql.split(';')
-        queries = [self._remove_comments(q) for q in queries if len(q.strip()) > 0]
-        return queries
+        queries = sqlparse.split(sql)
+        queries = [sqlparse.format(q, strip_whitespace=True).rstrip(';').strip() for q in queries]
+        return list(filter(None, queries))
 
     def execute_sql_script(self, sqlScriptFileName, **named_args):
         """
@@ -204,9 +205,9 @@ class Query(object):
         DELETE
           FROM employee_table
         """
-        with open(sqlScriptFileName) as sqlScriptFile:
-            queries = self._split_sql_script(sqlScriptFile.read())
-            self._run_query_list(queries, **named_args)
+        batches = OperatingSystem().get_file(sqlScriptFileName)
+        queries = self._split_batches_of_sql_statements(batches)
+        self._run_query_list(queries, **named_args)
 
     def execute_sql_string(self, sqlString, **named_args):
         """
@@ -230,7 +231,8 @@ class Query(object):
         This will break (use the 'Query' keyword instead):
         | Execute Sql String | SELECT * FROM person WHERE full_name_semicolon = 'john;doe' |
         """
-        self._run_query_list(sqlString.split(';'), **named_args)
+        queries = self._split_batches_of_sql_statements(sqlString)
+        self._run_query_list(queries, **named_args)
 
     def query_for_single_column(self, selectStatement, *expected_values, **named_args):
         answer = self.query(selectStatement, **named_args)
@@ -249,6 +251,8 @@ class Query(object):
 
     def _run_query_list(self, queries, **named_args):
         with self._dbconnection.begin():
-            for query in filter(lambda x: x.strip(), queries):
-                self._dbconnection.execute(query, **named_args)
+            for query in queries:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    self._dbconnection.execute(query, **named_args)
 
