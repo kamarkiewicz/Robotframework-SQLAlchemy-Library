@@ -110,10 +110,15 @@ Insert Data Into Table foobar
     Log    ${output}
     Should Be Equal As Strings    ${output}    None
 
-Verify Query - Row Count foobar table 1 row
+Insert Data Into Table foobar With Semicolon In String
+    ${output} =    Execute SQL String    INSERT INTO foobar VALUES(2,'aa ; bb');
+    Log    ${output}
+    Should Be Equal As Strings    ${output}    None
+
+Verify Query - Row Count foobar table 2 rows
     ${output} =    Query    SELECT COUNT(*) FROM foobar;
     Log    ${output}
-    Should Be Equal As Strings    ${output}    ((1,),)
+    Should Be Equal As Strings    ${output}    ((2,),)
 
 Verify Delete All Rows From Table - foobar
     Delete All Rows From Table    foobar
