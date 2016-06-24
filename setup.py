@@ -43,7 +43,7 @@ def main():
           packages     = ['SQLAlchemyLibrary'],
           package_data = {'SQLAlchemyLibrary': ['VERSION']},
           requires     = ['sqlalchemy', 'sqlparse'],
-          install_requires = ['robotframework', 'sqlalchemy'],
+          install_requires = ['robotframework', 'sqlalchemy', 'sqlparse'],
           )
 
 if __name__ == "__main__":
